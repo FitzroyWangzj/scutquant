@@ -523,6 +523,14 @@ class hybrid:
         pred = self.weight[0] * pred_l + self.weight[1] * pred_x
         return pred.values
 
+    def predict_pandas(self, x: pd.DataFrame) -> pd.Series:
+        index = x.index
+        result = []
+        result.append(pd.Series(self.predict(x)))
+        series = pd.concat(result, axis=0)
+        series.index = index
+        return series
+
     def save(self, target_dir: str):
         pickle.dump(self.lin_model, file=open(target_dir + '/linear.pkl', 'wb'))
         pickle.dump(self.xgb_model, file=open(target_dir + '/xgb.pkl', 'wb'))
