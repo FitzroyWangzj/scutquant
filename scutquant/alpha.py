@@ -44,9 +44,9 @@ def get_factor_portfolio(feature: pd.Series, label: pd.Series, long_only: bool =
     X = pd.DataFrame({"feature": x_neu, "label": label})
     X.dropna(inplace=True)
     X["factor_return"] = X["feature"] * X["label"]
-    daily_return = X["factor_return"].groupby(level=0).sum()
+    daily_return = X["factor_return"].groupby("datetime").sum()
     daily_return += 1
-    portfolio = daily_return.cumprod()
+    portfolio = daily_return.cumprod() - 1
     portfolio.index = pd.to_datetime(portfolio.index)
     return portfolio
 
