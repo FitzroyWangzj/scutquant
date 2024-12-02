@@ -90,6 +90,7 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         result["benchmark"] = (benchmark + 1).cumprod()
         result["benchmark"] = pd.concat([pd.Series([1], index=[result["benchmark"].index[0] - pd.DateOffset(days=1)]),
                                          result["benchmark"]], axis=0)
+        result["benchmark"] -= 1
         result["excess_return"] = result["return"] - result["benchmark"]
         result["drawdown"] = calc_drawdown(result["return"])
         result["excess_return_drawdown"] = calc_drawdown(result["excess_return"])
@@ -103,8 +104,6 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         result["ir"] = result["excess_return"].mean() / result["excess_return"].std()
     if "fitness" in metrics:
         result["fitness"] = calc_fitness(result["sharpe"], result["return"].mean(), result["turnover"].mean())
-    result["return"] -= 1
-    result["benchmark"] -= 1
     return result
 
 
