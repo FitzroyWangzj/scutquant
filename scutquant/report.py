@@ -345,3 +345,34 @@ def single_factor_ana(feature: pd.Series):
     ax3.set_ylabel("autocorr")
     ax0.set_title(feature.name)
     plt.show()
+
+def calc_fitness_metrics(pred: pd.Series, y: pd.Series):
+    # 计算MAE
+    mae = np.mean(np.abs(pred - y))
+    
+    # 计算MSE
+    mse = np.mean((pred - y) ** 2)
+    
+    # 计算RMSE
+    rmse = np.sqrt(mse)
+    
+    # 计算SMAPE
+    smape = np.mean(2 * np.abs(pred - y) / (np.abs(pred) + np.abs(y)))
+    
+    # 计算RMSPE
+    rmspe = np.sqrt(np.mean((np.abs(pred - y) / np.abs(y)) ** 2))
+    
+    # 计算R方
+    ss_res = np.sum((pred - y) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+    
+    # 将结果以字典形式返回
+    return {
+        'MAE': mae,
+        'MSE': mse,
+        'RMSE': rmse,
+        'SMAPE': smape,
+        'RMSPE': rmspe,
+        'R_squared': r_squared
+    }
