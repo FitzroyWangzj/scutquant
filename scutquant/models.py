@@ -771,7 +771,137 @@ class MultiGraphSage(GNN):
         x_e1_1 = f.relu(self.input_conv_1(x, edge_index_1))
         x_e1_1 = self.bn_1(x_e1_1)
 
-        x_e2_1 = f.relu(self.input_conv_1(x, edge_index_2))
+        x_e2_1 = f.relu(self.input_conv_2(x, edge_index_2))
+        x_e2_1 = self.bn_2(x_e2_1)
+
+        x_e1_2 = f.relu(self.input_conv_3(x, edge_index_1))
+        x_e1_2 = self.bn_3(x_e1_2)
+        x_e2_2 = f.relu(self.input_conv_4(x, edge_index_2))
+        x_e2_2 = self.bn_4(x_e2_2)
+
+        x = f.relu(self.linear_1(x))
+        x = f.dropout(x, p=self.dropout, training=self.training)
+
+        x1 = f.relu(self.linear_2(x + x_e1_1))
+        x1 = self.bn_5(x1)
+
+        x2 = f.relu(self.linear_3(x + x_e2_1))
+        x2 = self.bn_6(x2)
+        return self.output_layer(x1 + x2 + x_e1_2 + x_e2_2)
+
+    def init_model(self):
+        self.model = MultiGraphSage(input_channels=self.input_channels, hidden_channels=self.hidden_channels,
+                                    output_channels=self.output_channels, output_shape=self.output_shape,
+                                    aggr=self.aggr,
+                                    epochs=self.epochs, loss=self.loss, lr=self.lr, weight_decay=self.weight_decay,
+                                    dropout=self.dropout).to(torch.float32)
+
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
+    def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, edge1_train: list = None,
+            edge2_train: list = None, edge1_valid: list = None, edge2_valid: list = None):
+        if self.model is None:
+            self.init_model()
+
+        x_train, y_train, x_valid, y_valid, z_train, z_valid = transform_data(x_train, y_train, x_valid, y_valid,
+                                                                              z_train, z_valid, for_cnn=self.for_cnn,
+                                                                              for_rnn=self.for_rnn)
+        for epoch in range(1, self.epochs + 1):
+            total_loss_train = 0
+            total_loss_val = 0
+            val_ic = 0
+            for i in range(len(x_train)):
+                loss_train = self.get_loss(x=x_train[i], y=y_train[i], z=z_train[i] if z_train is not None else None,
+                                           edge_index_1=edge1_train[i], edge_index_2=edge2_train[i])
+                total_loss_train += loss_train
+            for i in range(len(x_valid)):
+                loss_val = self.test(x=x_valid[i], y=y_valid[i], z=z_valid[i] if z_valid is not None else None,
+                                     edge_index_1=edge1_valid[i], edge_index_2=edge2_valid[i])
+                total_loss_val += loss_val
+                val_ic += float(calc_tensor_corr(
+                    self.predict_(x_valid[i], edge_index_1=edge1_valid[i], edge_index_2=edge2_valid[i]),
+                    y_valid[i]))
+            print("Epoch:", epoch, "loss:", total_loss_train / len(x_train), "val_loss:",
+                  total_loss_val / len(x_valid), "val_ic:", val_ic / len(x_valid))
+
+    def fit_kfold(self, x, y, z=None, edge1: list = None, edge2: list = None, k: int = 5, train_size=None,
+                  test_size=None, collect: bool = False):
+        x_list = from_pandas_to_list(x)
+        y_list = from_pandas_to_list(y)
+        z_list = from_pandas_to_list(z) if z is not None else None
+        from sklearn.model_selection import TimeSeriesSplit
+        if self.model is None:
+            self.init_model()
+        tscv = TimeSeriesSplit(n_splits=k, max_train_size=train_size, test_size=test_size)
+        if collect:
+            self.output = []
+        for fold, (train_index, valid_index) in enumerate(tscv.split(x_list)):
+            x_train, x_valid = split_dataset_by_index(x_list, train_index, valid_index)
+            y_train, y_valid = split_dataset_by_index(y_list, train_index, valid_index)
+            edge1_train, edge1_valid = split_dataset_by_index(edge1, train_index, valid_index)
+            edge2_train, edge2_valid = split_dataset_by_index(edge2, train_index, valid_index)
+            if z is not None:
+                z_train, z_valid = split_dataset_by_index(z_list, train_index, valid_index)
+            else:
+                z_train, z_valid = None, None
+            print("fold: ", fold)
+            self.fit(x_train, y_train, x_valid, y_valid, z_train=z_train, z_valid=z_valid, edge1_train=edge1_train,
+                     edge1_valid=edge1_valid, edge2_train=edge2_train, edge2_valid=edge2_valid)
+            if collect:
+                for i in range(len(x_valid)):
+                    self.output.append(Series(self.predict_(x_valid[i], edge_index_1=edge1_valid[i],
+                                                            edge_index_2=edge2_valid[i]).view(-1, )))
+        if collect:
+            self.output = concat(self.output, axis=0)
+            if isinstance(x, DataFrame):
+                self.output.index = x.index[-len(self.output):]
+
+    def predict_pandas(self, x: DataFrame, edge_index_1=None, edge_index_2=None) -> Series:
+        index = x.index
+        x = from_pandas_to_list(x, self.for_cnn)
+        result = []
+        for i in range(len(x)):
+            result.append(
+                Series(self.predict_(x[i], edge_index_1=edge_index_1[i], edge_index_2=edge_index_2[i]).view(-1, )))
+        series = concat(result, axis=0)
+        series.index = index
+        return series
+
+class MultiGAT(GNN):
+    def __init__(self, input_channels: int, hidden_channels: int, output_channels: int, *args, **kwargs):
+        super().__init__(input_channels, hidden_channels, output_channels, *args, **kwargs)
+        self.input_channels = input_channels
+        self.hidden_channels = hidden_channels
+        self.output_channels = output_channels
+
+        self.input_conv_1 = GATConv(in_channels=self.input_channels, out_channels=self.hidden_channels, aggr=self.aggr)
+        self.input_conv_2 = GATConv(in_channels=self.input_channels, out_channels=self.hidden_channels, aggr=self.aggr)
+        self.input_conv_3 = GATConv(in_channels=self.input_channels, out_channels=self.output_channels, aggr=self.aggr)
+        self.input_conv_4 = GATConv(in_channels=self.input_channels, out_channels=self.output_channels, aggr=self.aggr)
+        self.linear_1 = torch.nn.Linear(self.input_channels, self.hidden_channels)
+        self.linear_2 = torch.nn.Linear(self.hidden_channels, self.output_channels)
+        self.linear_3 = torch.nn.Linear(self.hidden_channels, self.output_channels)
+        self.output_layer = torch.nn.Linear(self.output_channels, self.output_shape)
+
+        self.bn_1 = torch.nn.BatchNorm1d(self.hidden_channels)
+        self.bn_2 = torch.nn.BatchNorm1d(self.hidden_channels)
+        self.bn_3 = torch.nn.BatchNorm1d(self.output_channels)
+        self.bn_4 = torch.nn.BatchNorm1d(self.output_channels)
+        self.bn_5 = torch.nn.BatchNorm1d(self.output_channels)
+        self.bn_6 = torch.nn.BatchNorm1d(self.output_channels)
+
+    def forward(self, x, edge_index_1=None, edge_index_2=None):
+        if edge_index_1 is None:
+            edge_index_1 = torch.from_numpy(np.zeros(shape=(x.shape[0], x.shape[0]))).to(torch.float32).to_sparse_csr()
+        if edge_index_2 is None:
+            edge_index_2 = torch.from_numpy(np.zeros(shape=(x.shape[0], x.shape[0]))).to(torch.float32).to_sparse_csr()
+        if self.add_self_loops:
+            edge_index_1 = add_self_loops(edge_index_1)
+            edge_index_2 = add_self_loops(edge_index_2)
+        x_e1_1 = f.relu(self.input_conv_1(x, edge_index_1))
+        x_e1_1 = self.bn_1(x_e1_1)
+
+        x_e2_1 = f.relu(self.input_conv_2(x, edge_index_2))
         x_e2_1 = self.bn_2(x_e2_1)
 
         x_e1_2 = f.relu(self.input_conv_3(x, edge_index_1))
