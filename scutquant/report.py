@@ -322,7 +322,7 @@ def single_factor_ana(feature: pd.Series):
     """
     mean, std, unique, autocorr = calc_features(feature=feature)
 
-    fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1)
+    fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, ncols=1,figsize=(10,10))
     ax0.hist(feature, bins=100)
     ax0.set_ylabel("count")
 
@@ -344,6 +344,8 @@ def single_factor_ana(feature: pd.Series):
     ax3.plot(autocorr)
     ax3.set_ylabel("autocorr")
     ax0.set_title(feature.name)
+
+    plt.subplots_adjust(hspace=0.5)
     plt.show()
 
 def calc_fitness_metrics(pred: pd.Series, y: pd.Series):
