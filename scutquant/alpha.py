@@ -60,7 +60,7 @@ def calc_fitness(sharpe: float, returns: float, turnover: float) -> float:
 
 
 def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle_nan: bool = True,
-                       long_only: bool = False, plot: bool = True) -> dict:
+                       long_only: bool = False, plot: bool = True, ic_freq: int = 30) -> dict:
     """
     :param factor:
     :param label:
@@ -78,6 +78,7 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
     result: dict = {}
     if "ic" in metrics:  # information coefficient
         result["ic"] = cs_corr(factor, label, rank=False).groupby(level=0).mean()
+        result["accumulated_ic"] = result["ic"].cumsum()
         result["ic_mean"] = result["ic"].mean()
         result["icir"] = result["ic"].mean() / result["ic"].std()
         result["t-stat"] = result["icir"] * (len(result["ic"]) ** 0.5)
@@ -115,6 +116,21 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         plt.legend()
         plt.show()
         plt.clf()
+
+        fig, ax1 = plt.subplots(figsize=(10, 6))
+        ax1.bar(result["ic"].index, result["ic"].rolling(ic_freq).mean(), label='IC', color='gray', alpha=0.5, width=0.5)
+        ax1.set_ylabel('IC')  # 设置 y 轴标签
+        ax1.set_title(f'IC Series (rolling ' + str(ic_freq) + ')')
+
+        ax2 = ax1.twinx()
+        ax2.plot(result["accumulated_ic"], label='Accumulated_IC', color='r')
+        ax2.set_ylabel('Accumulated IC')  # 设置次 y 轴标签
+
+        ax1.legend(loc='upper left')
+        ax2.legend(loc='upper right')
+
+        plt.show()
+
     return result
 
 
