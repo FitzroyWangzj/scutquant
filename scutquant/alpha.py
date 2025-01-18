@@ -3,6 +3,7 @@ from .report import calc_drawdown
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+import matplotlib.dates as mdates
 
 def factor_neutralize(factors: pd.DataFrame | pd.Series, target: pd.Series,
                       feature: list[str] = None) -> pd.DataFrame | pd.Series:
@@ -119,6 +120,7 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
 
         fig, ax1 = plt.subplots(figsize=(10, 6))
         ax1.bar(result["ic"].index, result["ic"].rolling(ic_freq).mean(), label='IC', color='gray', alpha=0.5, width=0.5)
+        ax1.xaxis.set_major_locator(mdates.MonthLocator())
         ax1.set_ylabel('IC')  # 设置 y 轴标签
         ax1.set_title(f'IC Series (rolling ' + str(ic_freq) + ')')
 
@@ -126,6 +128,8 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         ax2.plot(result["accumulated_ic"], label='Accumulated_IC', color='r')
         ax2.set_ylabel('Accumulated IC')  # 设置次 y 轴标签
 
+
+        ax1.grid(True)
         ax1.legend(loc='upper left')
         ax2.legend(loc='upper right')
 
