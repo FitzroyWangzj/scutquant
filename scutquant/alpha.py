@@ -1,7 +1,8 @@
 from .operators import *
 from .report import calc_drawdown
 import pandas as pd
-
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 def factor_neutralize(factors: pd.DataFrame | pd.Series, target: pd.Series,
                       feature: list[str] = None) -> pd.DataFrame | pd.Series:
@@ -59,7 +60,7 @@ def calc_fitness(sharpe: float, returns: float, turnover: float) -> float:
 
 
 def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle_nan: bool = True,
-                       long_only: bool = False) -> dict:
+                       long_only: bool = False, plot: bool = True) -> dict:
     """
     :param factor:
     :param label:
@@ -76,14 +77,12 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         label = label[label.index.isin(factor.index)]
     result: dict = {}
     if "ic" in metrics:  # information coefficient
-        result["ic"] = cs_corr(factor, label, rank=True).groupby(level=0).mean()
+        result["ic"] = cs_corr(factor, label, rank=False).groupby(level=0).mean()
         result["ic_mean"] = result["ic"].mean()
         result["icir"] = result["ic"].mean() / result["ic"].std()
         result["t-stat"] = result["icir"] * (len(result["ic"]) ** 0.5)
     if "return" in metrics:
         result["return"]: pd.Series = get_factor_portfolio(factor, label, long_only=long_only)
-        result["return"] = pd.concat([pd.Series([1], index=[result["return"].index[0] - pd.DateOffset(days=1)]),
-                                      result["return"]], axis=0)
         benchmark: pd.Series = label.groupby(level=0).mean()
         benchmark.index = pd.to_datetime(benchmark.index)
         benchmark = benchmark[benchmark.index.isin(result["return"].index)]
@@ -99,11 +98,23 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
     if "turnover" in metrics:
         result["turnover"] = calc_factor_turnover(factor)
     if "sharpe" in metrics:
-        result["sharpe"] = (result["return"].mean() - 1) / result["return"].std()
+        result["sharpe"] = result["return"].mean() / result["return"].std()
     if "ir" in metrics:  # information ratio
         result["ir"] = result["excess_return"].mean() / result["excess_return"].std()
     if "fitness" in metrics:
         result["fitness"] = calc_fitness(result["sharpe"], result["return"].mean(), result["turnover"].mean())
+    if plot:
+        plt.figure(figsize=(10, 6))
+        plt.plot(result["excess_return"], label='excessive return')
+        plt.plot(result["return"], label='return', color='r')
+        plt.plot(result["benchmark"], label='benchmark', color = 'gray', alpha = 0.8)
+        plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x * 100:.2f}%'))
+        plt.ylabel('return')
+        plt.title('Return')
+        plt.grid(True)
+        plt.legend()
+        plt.show()
+        plt.clf()
     return result
 
 
