@@ -188,8 +188,10 @@ class style_mse(torch.nn.Module):
 
 
 class Model(torch.nn.Module):
-    def __init__(self, epochs: int = 10, loss: str = "mse_loss", lr: float = 1e-3, weight_decay: float = 5e-4,
-                 dropout: float = 0.2, model=None, adv: bool = False, *args, **kwargs):
+    def __init__(self, epochs: int = 10, loss: str = "mse_loss", lr: float = 1e-3, weight_decay: float = 5e-4, lr_scheduler: str = None,
+                 dropout: float = 0.2, model=None, adv: bool = False, auto_save: bool = False, 
+                 early_stopping: int = 0, min_delta: int = 0.0001,
+                *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.epochs = epochs
         self.loss = loss if loss != "style_mse" else style_mse()
@@ -202,6 +204,15 @@ class Model(torch.nn.Module):
         self.for_rnn = False
         self.adv = adv
         self.output = None
+        self.auto_save = auto_save
+
+        # Early stopping parameters
+        self.early_stopping = early_stopping  # Now an int (0 means no early stopping)
+        self.min_delta = min_delta
+        self.best_val_loss = float("inf")
+        self.early_stop_counter = 0 
+
+        self.lr_scheduler = lr_scheduler
 
     def forward(self, x, **kwargs):
         pass
@@ -266,6 +277,22 @@ class Model(torch.nn.Module):
                 val_ic += float(calc_tensor_corr(self.predict_(x_valid[i]), y_valid[i]))
             print("Epoch:", epoch, "loss:", total_loss_train / len(x_train), "val_loss:",
                   total_loss_val / len(x_valid), "val_ic:", val_ic / len(x_valid))
+            
+            if self.early_stopping > 0:  # Only check early stopping if it is greater than 0
+                if total_loss_val / len(x_valid) < self.best_val_loss - self.min_delta:
+                    self.best_val_loss = total_loss_val / len(x_valid)
+                    self.early_stop_counter = 0  # Reset counter if there's improvement
+                else:
+                    self.early_stop_counter += 1
+                    print(f"Early stopping counter: {self.early_stop_counter}/{self.early_stopping}")
+                    if self.early_stop_counter >= self.early_stopping:
+                        print("Early stopping triggered")
+                        break  # Stop training if patience is exceeded
+            
+            if self.auto_save:
+                save_path = f"Model/epoch_{epoch}.pth"
+                torch.save(self.state_dict(), save_path)
+                print(f"Model saved to {save_path}")
 
     def fit_kfold(self, x, y, z=None, k: int = 5, train_size=None, test_size=None, collect: bool = False, **kwargs):
         x_list = from_pandas_to_list(x)
