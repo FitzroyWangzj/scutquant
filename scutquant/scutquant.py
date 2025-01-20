@@ -245,6 +245,38 @@ def bootstrap(X: pd.DataFrame, col: str, val: int = 0, windows: int = 5, n: floa
     X = pd.concat((X, X_sample))
     return X
 
+def adjust_data_for_rnn(X_train: pd.DataFrame, X_valid: pd.DataFrame, X_test: pd.DataFrame, timestep: int):
+    """
+    rnn需要t-timestep的多步数据进行预测
+    """
+    # 补充 X_valid 数据
+    unique_datetimes_train = X_train.index.get_level_values(0).unique()
+    last_datetimes_train = unique_datetimes_train[-timestep:]  # 获取 X_train 中最后 timestep 个 datetime
+
+    # 从 X_train 中提取最后 timestep 个时间步的数据
+    last_timestep_data_train = X_train.loc[(last_datetimes_train, slice(None)), :]
+
+    # 将提取的数据拼接到 X_valid 的开头
+    X_valid = pd.concat([last_timestep_data_train, X_valid], axis=0)
+
+
+    # 补充 X_test 数据
+    unique_datetimes_valid = X_valid.index.get_level_values(0).unique()
+    last_datetimes_valid = unique_datetimes_valid[-timestep:]  # 获取 X_valid 中最后 timestep 个 datetime
+
+    # 从 X_valid 中提取最后 timestep 个时间步的数据
+    last_timestep_data_valid = X_valid.loc[(last_datetimes_valid, slice(None)), :]
+    # 剔除最后 timestep 个时间步的数据
+    X_valid = X_valid.loc[~X_valid.index.get_level_values(0).isin(last_datetimes_valid)]
+
+    # 将提取的数据拼接到 X_test 的开头
+    X_test = pd.concat([last_timestep_data_valid, X_test], axis=0)
+
+    # 重新排序索引（可选）
+    X_valid = X_valid.sort_index()
+    X_test = X_test.sort_index()
+
+    return X_train, X_valid, X_test
 
 ####################################################
 # 拆分数据集
