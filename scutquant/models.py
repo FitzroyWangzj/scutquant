@@ -504,16 +504,16 @@ class GRU(Model):
 
         self.gru = torch.nn.GRU(self.input_shape, self.hidden_shape, batch_first=True, bias=False,
                                 num_layers=self.n_layers)
-        # self.bn = torch.nn.BatchNorm1d(self.hidden_shape)
+        self.bn = torch.nn.BatchNorm1d(self.hidden_shape)
         self.linear = torch.nn.Linear(self.hidden_shape, self.output_shape)
 
         self.for_rnn = True
 
     def forward(self, x, **kwargs):
         x, _ = self.gru(x)
-        # x = f.relu(x[:, -1, :])
-        # x = self.bn(x)
-        x = self.linear(x[:, -1, :])
+        x = f.relu(x[:, -1, :])
+        x = self.bn(x)
+        x = self.linear(x)
         return x
 
     def init_model(self):
@@ -523,33 +523,87 @@ class GRU(Model):
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
+        self.lr_scheduler = lr_scheduler(self.optimizer,self.lr_scheduler_kwargs)
+
     def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, **kwargs):
         x_train, y_train, x_valid, y_valid, z_train, z_valid = transform_data(x_train, y_train, x_valid, y_valid,
                                                                               z_train, z_valid, for_cnn=self.for_cnn,
                                                                               for_rnn=self.for_rnn)
         if self.model is None:
             self.init_model()
+
+        best_val_ic = -float('inf')  # Initialize with a very low value
+        best_epoch = 0
+
         for epoch in range(1, self.epochs + 1):
             total_loss_train = 0
             total_loss_val = 0
             val_ic = 0
-            for i in range(0, x_train.shape[1] - self.timesteps):
-                loss_train = self.get_loss(x_train[:, i:i + self.timesteps, :], y_train[:, self.timesteps + i, :],
-                                           z_train[self.timesteps + i] if z_train is not None else None)
+
+            # train
+            for i in range(0, x_train.shape[1] - self.timesteps + 1):
+                loss_train = self.get_loss(x_train[:, i:i + self.timesteps, :], y_train[:, self.timesteps + i - 1, :],
+                                           z_train[self.timesteps + i - 1] if z_train is not None else None)
                 total_loss_train += loss_train
+
+            # valid
             for i in range(0, x_valid.shape[1] - self.timesteps):
-                loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, self.timesteps + i, :],
-                                     z_valid[self.timesteps + i] if z_valid is not None else None)
+                loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, i, :],
+                                     z_valid[i] if z_valid is not None else None)
                 total_loss_val += loss_val
                 val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
-                                                 y_valid[:, self.timesteps + i, :]))
-            print("Epoch:", epoch, "loss:", total_loss_train / len(x_train), "val_loss:",
-                  total_loss_val / len(x_valid), "val_ic:", val_ic / len(x_valid))
+                                                 y_valid[:, i, :]))
+                
+            avg_loss_train = total_loss_train / len(x_train)
+            avg_loss_val = total_loss_val / len(x_valid)
+            avg_val_ic = val_ic / (x_valid.shape[1] - self.timesteps)
+
+            print("Epoch:", epoch, "loss:", avg_loss_train, "val_loss:", avg_loss_val, "val_ic:", avg_val_ic)
+
+            # early stopping
+            if self.early_stopping > 0:  # Only check early stopping if it is greater than 0
+                if avg_loss_val < self.best_val_loss - self.min_delta:
+                    self.best_val_loss = avg_loss_val
+                    self.early_stop_counter = 0  # Reset counter if there's improvement
+                else:
+                    self.early_stop_counter += 1
+                    print(f"Early stopping counter: {self.early_stop_counter}/{self.early_stopping}")
+                    if self.early_stop_counter >= self.early_stopping:
+                        print("Early stopping triggered")
+                        break  # Stop training if patience is exceeded
+
+            # scheduler
+            if self.lr_scheduler is not None:
+                if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # 使用 ReduceLROnPlateau 时，需传入验证集的损失
+                    self.lr_scheduler.step(avg_loss_val)
+                else:
+                    self.lr_scheduler.step()  # 其他调度器使用 step() 进行更新
+
+            # save   
+            if self.auto_save:
+                save_path = f"{self.save_folder}/epoch_{epoch}.pth"
+                folder_path = os.path.dirname(save_path)
+                
+                if not os.path.exists(folder_path):
+                    os.makedirs(folder_path)
+
+                torch.save(self.state_dict(), save_path)
+                print(f"Model saved to {save_path}")
+
+                if avg_val_ic > best_val_ic:  # Update best val_ic and save the model
+                    best_val_ic = avg_val_ic
+                    best_epoch = epoch
+                    best_save_path = f"{self.save_folder}/best_epoch_{best_epoch}.pth"
+
+
+        torch.save(self.state_dict(), best_save_path)
+        print(f"Best epoch:{best_epoch}, Best IC:{best_val_ic}, Best Model saved to {best_save_path}")
 
     def predict_pandas(self, x: DataFrame, **kwargs) -> Series:
         x_tensor = from_pandas_to_rnn(x, fillna=True)
         result = []
-        for i in range(x_tensor.shape[1] - self.timesteps):
+        for i in range(x_tensor.shape[1] - self.timesteps + 1):
             result.append(Series(self.predict_(x_tensor[:, i:i + self.timesteps, :], **kwargs).view(-1, )))
 
         days = x.index.get_level_values(0).unique()[-len(result):]
@@ -563,7 +617,7 @@ class GRU(Model):
             predict.append(df.set_index([name_0, name_1]).iloc[:, 0])
         predict = concat(predict, axis=0)
         return predict[predict.index.isin(x.index)]
-
+        
 class LSTM(Model):
     def __init__(self, input_shape: int, hidden_shape: int, output_shape: int = 1, n_layers: int = 1,
                  timesteps: int = 10, *args, **kwargs):
