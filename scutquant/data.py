@@ -114,5 +114,6 @@ def get_stock_data(pro, file_path="instrument_list.csv", folder_path="./data/", 
         prices = ["open", "close", "high", "low"]
         for p in prices:
             instrument_data[p] *= adj
+    instrument_data.rename(columns={"vol":"volume"})
     instrument_data.to_csv(folder_path+'stock_data.csv')
     return instrument_data
