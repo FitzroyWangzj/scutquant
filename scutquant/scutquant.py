@@ -681,3 +681,39 @@ def ic_ana(pred: pd.Series | pd.DataFrame, y: pd.DataFrame | pd.Series, groupby:
         show_dist(ic)
     IC, ICIR, Rank_IC, Rank_ICIR = ic.mean(), ic.mean() / ic.std(), rank_ic.mean(), rank_ic.mean() / rank_ic.std()
     return IC, ICIR, Rank_IC, Rank_ICIR
+
+def ts_ic_ana(pred: pd.Series | pd.DataFrame, y: pd.DataFrame | pd.Series, plot: bool = True,
+           freq: int = 30) -> tuple[float, float]:
+    """
+    用于时间序列数据的ic分析
+    :param pred: pd.DataFrame or pd.Series, 预测值
+    :param y: pd.DataFrame or pd.Series, 真实值
+    :param groupby: str, 排序依据
+    :param plot: bool, 控制是否画出IC曲线
+    :param freq: int, 频率, 用于平滑IC序列
+    :return: float, 依次为ic均值, icir, rank_ic均值和rank_icir
+    """
+    concat_data = pd.concat([pred, y], axis=1)
+    # 计算 IC
+    ic = concat_data.iloc[:, 0].corr(concat_data.iloc[:, 1])
+
+    ic_series = concat_data.iloc[:, 0].rolling(window=freq).corr(concat_data.iloc[:, 1])
+    print(ic_series.tail())
+    
+    # 计算 ICIR (Information Coefficient Information Ratio)
+    icir = ic_series.mean() / ic_series.std() if ic_series.std() != 0 else 0
+    
+    if plot:
+        # ic.index = pd.to_datetime(ic.index)
+        # rank_ic.index = pd.to_datetime(rank_ic.index)
+        # 默认freq为30的情况下，画出来的IC是月均IC
+        plt.figure(figsize=(10, 6))
+        plt.plot(ic_series, label='ic', marker='o')
+        plt.ylabel('score')
+        plt.title('IC Series (rolling ' + str(freq) + ')')
+        plt.legend()
+        plt.show()
+        plt.clf()
+        show_dist(ic_series)
+    IC, ICIR = ic, icir
+    return IC, ICIR
