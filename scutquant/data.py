@@ -67,7 +67,7 @@ def process_index_cons(from_file_path="index_weight.csv", folder_path="./data/")
     code_list["ts_code"] = codes
     code_list["days"] = code_list.index.get_level_values(0)
     code_list["days"] = code_list["days"].astype(str)
-    code_list["days"] = pd.to_datetime(code_list["days"], format="%Y-%m-%d")
+    code_list["days"] = pd.to_datetime(code_list["days"], format="%Y%m%d")
     # print(code_list)
     code_list.reset_index(inplace=True)
     code_list.set_index("days", inplace=True)
