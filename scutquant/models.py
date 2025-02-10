@@ -596,9 +596,9 @@ class GRU(Model):
                     best_epoch = epoch
                     best_save_path = f"{self.save_folder}/best_epoch_{best_epoch}.pth"
 
-
-        torch.save(self.state_dict(), best_save_path)
-        print(f"Best epoch:{best_epoch}, Best IC:{best_val_ic}, Best Model saved to {best_save_path}")
+        if self.auto_save:
+            torch.save(self.state_dict(), best_save_path)
+            print(f"Best epoch:{best_epoch}, Best IC:{best_val_ic}, Best Model saved to {best_save_path}")
 
     def predict_pandas(self, x: DataFrame, **kwargs) -> Series:
         x_tensor = from_pandas_to_rnn(x, fillna=True)
@@ -725,9 +725,9 @@ class LSTM(Model):
                     best_epoch = epoch
                     best_save_path = f"{self.save_folder}/best_epoch_{best_epoch}.pth"
 
-
-        torch.save(self.state_dict(), best_save_path)
-        print(f"Best epoch:{best_epoch}, Best IC:{best_val_ic}, Best Model saved to {best_save_path}")
+        if self.auto_save:
+            torch.save(self.state_dict(), best_save_path)
+            print(f"Best epoch:{best_epoch}, Best IC:{best_val_ic}, Best Model saved to {best_save_path}")
 
     def predict_pandas(self, x: DataFrame, **kwargs) -> Series:
         x_tensor = from_pandas_to_rnn(x, fillna=True)
