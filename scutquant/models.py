@@ -525,7 +525,7 @@ class GRU(Model):
 
         self.lr_scheduler = lr_scheduler(self.optimizer,self.lr_scheduler_kwargs)
 
-    def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, **kwargs):
+    def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, adjusted=False, **kwargs):
         x_train, y_train, x_valid, y_valid, z_train, z_valid = transform_data(x_train, y_train, x_valid, y_valid,
                                                                               z_train, z_valid, for_cnn=self.for_cnn,
                                                                               for_rnn=self.for_rnn)
@@ -547,12 +547,20 @@ class GRU(Model):
                 total_loss_train += loss_train
 
             # valid
-            for i in range(0, x_valid.shape[1] - self.timesteps):
-                loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, i, :],
-                                     z_valid[i] if z_valid is not None else None)
-                total_loss_val += loss_val
-                val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
-                                                 y_valid[:, i, :]))
+            if adjusted:
+                for i in range(0, x_valid.shape[1] - self.timesteps):
+                    loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, i, :],
+                                        z_valid[i] if z_valid is not None else None)
+                    total_loss_val += loss_val
+                    val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
+                                                    y_valid[:, i, :]))
+            else:
+                for i in range(0, x_valid.shape[1] - self.timesteps):
+                    loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, self.timesteps + i - 1, :],
+                                        z_valid[self.timesteps + i - 1] if z_valid is not None else None)
+                    total_loss_val += loss_val
+                    val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
+                                                    y_valid[:, self.timesteps + i - 1, :]))
                 
             avg_loss_train = total_loss_train / len(x_train)
             avg_loss_val = total_loss_val / len(x_valid)
@@ -654,7 +662,7 @@ class LSTM(Model):
 
         self.lr_scheduler = lr_scheduler(self.optimizer,self.lr_scheduler_kwargs)
 
-    def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, **kwargs):
+    def fit(self, x_train, y_train, x_valid, y_valid, z_train=None, z_valid=None, adjusted=False, **kwargs):
         x_train, y_train, x_valid, y_valid, z_train, z_valid = transform_data(x_train, y_train, x_valid, y_valid,
                                                                               z_train, z_valid, for_cnn=self.for_cnn,
                                                                               for_rnn=self.for_rnn)
@@ -676,12 +684,20 @@ class LSTM(Model):
                 total_loss_train += loss_train
 
             # valid
-            for i in range(0, x_valid.shape[1] - self.timesteps):
-                loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, i, :],
-                                     z_valid[i] if z_valid is not None else None)
-                total_loss_val += loss_val
-                val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
-                                                 y_valid[:, i, :]))
+            if adjusted:
+                for i in range(0, x_valid.shape[1] - self.timesteps):
+                    loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, i, :],
+                                        z_valid[i] if z_valid is not None else None)
+                    total_loss_val += loss_val
+                    val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
+                                                    y_valid[:, i, :]))
+            else:
+                for i in range(0, x_valid.shape[1] - self.timesteps):
+                    loss_val = self.test(x_valid[:, i:i + self.timesteps, :], y_valid[:, self.timesteps + i - 1, :],
+                                        z_valid[self.timesteps + i - 1] if z_valid is not None else None)
+                    total_loss_val += loss_val
+                    val_ic += float(calc_tensor_corr(self.predict_(x_valid[:, i:i + self.timesteps, :]),
+                                                    y_valid[:, self.timesteps + i - 1, :]))
                 
             avg_loss_train = total_loss_train / len(x_train)
             avg_loss_val = total_loss_val / len(x_valid)
