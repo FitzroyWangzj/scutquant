@@ -90,6 +90,36 @@ def transform_data(x_train, y_train, x_valid, y_valid, z_train=None, z_valid=Non
             z_valid = from_pandas_to_list(z_valid)
     return x_train, y_train, x_valid, y_valid, z_train, z_valid
 
+# 构建图结构
+
+def make_corr_matrix(x: Series, threshold: float = 0.5, shift: int = 0):
+    if shift > 0:
+        x = x.groupby(level=1).shift(shift).fillna(0)
+    corr_matrix = x.unstack().corr().fillna(0)
+    corr_matrix[abs(corr_matrix) < threshold] = 0
+    corr_matrix[corr_matrix != 0] = 1
+    return corr_matrix
+
+def from_corrmatrix_to_edge(x: Series, corr_matrix, threshold: float = 0.5, layout: str = "csr", shift: int = 0,
+                        select_instrument: bool = True) -> list:
+    
+    inst = x.groupby(level=0).apply(lambda a: a.index.get_level_values(1).unique().values.tolist()).values
+    mat_list = []
+
+    for d in range(len(inst)):
+        if select_instrument:
+            in_col = corr_matrix.columns.isin(inst[d])
+            relation_ = corr_matrix[corr_matrix.columns[in_col]]
+            relation_ = relation_[relation_.index.isin(inst[d])]
+        else:
+            relation_ = corr_matrix
+        tensor = torch.from_numpy(relation_.values).to(torch.float32)
+        if layout == "csr":
+            mat_list.append(tensor.to_sparse_csr())
+        else:
+            mat_list.append(tensor.to_sparse_coo())
+    return mat_list
+
 
 def from_series_to_edge(x: Series, threshold: float = 0.5, layout: str = "csr", shift: int = 0,
                         select_instrument: bool = True) -> list:
