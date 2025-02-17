@@ -388,6 +388,29 @@ def ts_decay(data: pd.Series | pd.core.groupby.SeriesGroupBy, n_period: int) -> 
         return res
 
 
+def EWMA(x: pd.Series, lamda: int, n: int) -> pd.Series:
+    """
+    Exponential Weighted Moving Average
+    lamda: half-life period
+    """
+    arr = np.arange(1, n + 1)
+    arr = 0.5 ** (arr/lamda)
+    weights = arr / sum(arr)
+    return x.rolling(n).apply(lambda y: np.dot(y, weights), raw=True)
+
+
+def ts_EWMA(data: pd.Series | pd.core.groupby.SeriesGroupBy, half_period: int, n_period: int) -> pd.Series:
+    """
+    Returns the linear Exponential Weighted Moving Average on data for the past n_period days with half-life period of half_period.
+    """
+    if isinstance(data, pd.Series):
+        return data.groupby(level=1).transform(lambda x: EWMA(x, half_period, n_period))
+    else:
+        res: pd.Series = data.transform(lambda x: EWMA(x, half_period, n_period))
+        res.index.names = ["datetime", "instrument"]
+        return res
+
+
 def ts_argmax(data: pd.Series | pd.core.groupby.SeriesGroupBy, n_period: int) -> pd.Series:
     def argmax(feature: pd.Series) -> pd.Series:
         return feature.rolling(n_period).apply(lambda x: np.argmax(x))
