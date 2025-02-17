@@ -663,8 +663,8 @@ class WVMA(Alpha):
 
 
 class CustomizedAlpha(Alpha):
-    def __init__(self, data: pd.Series | pd.DataFrame, expression: list[str] | str, normalize: str = "zscore",
-                 nan_handling: str = "ffill"):
+    def __init__(self, data: pd.Series | pd.DataFrame, expression: list[str] | str, name: list[str] | str = None,
+                 normalize: str = "zscore", nan_handling: str = "ffill"):
         """
         eg:
         factor = CustomizedAlpha(data=df, expression=[f"ts_std(data['{x}'], 5)" for x in df.columns]).get_factor_value()
@@ -672,6 +672,7 @@ class CustomizedAlpha(Alpha):
         super().__init__()
         self.data = data
         self.expression = expression
+        self.name = name
         self.norma_method = normalize
         self.process_nan = nan_handling
         self.result = pd.Series(dtype='float64') | pd.DataFrame(dtype='float64')
@@ -682,8 +683,12 @@ class CustomizedAlpha(Alpha):
             for e in self.expression:
                 factors.append(eval(e.replace("data", "self.data")))
             self.result: pd.DataFrame = pd.concat(factors, axis=1)
+            if self.name is not None:
+                self.result.columns = self.name
         else:
             self.result: pd.Series = eval(self.expression.replace("data", "self.data"))
+            if self.name is not None:
+                self.result.name = self.name
 
 
 def qlib360(data: pd.DataFrame, normalize=False, fill=False, windows=None) -> pd.DataFrame:
