@@ -855,13 +855,15 @@ def qlib158(data: pd.DataFrame, normalize: bool = False, fill: bool = False, win
     vsumn = SUMN(volume, windows).get_factor_value(normalize=normalize, handle_nan=fill)
     vsumn.columns = ["vsumn" + str(w) for w in windows]
 
+# prospect: goujun191
 def make_factors(data: pd.DataFrame, normalize: bool = False, fill: bool = False, windows=None,
             n_jobs: int = -1, deunit: bool = True) -> pd.DataFrame:
     
     if windows is None:
         windows = [5, 10, 20, 30]
     
-    pvd = CustomizedAlpha(data=data, expression=[f" - ts_corr(data['amount'] / data['volume'], data['volume'], {w})" for w in windows]).get_factor_value()
-    pvd.columns = ["pvd" + str(w) for w in windows]
-
+    pvd = CustomizedAlpha(data=data, 
+                          expression=[f" - ts_corr(data['amount'] / data['volume'], data['volume'], {w})" for w in windows],
+                          name=[f"pvd{w}" for w in windows],
+                          ).get_factor_value()
     return pvd
