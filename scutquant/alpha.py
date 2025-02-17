@@ -855,6 +855,10 @@ def qlib158(data: pd.DataFrame, normalize: bool = False, fill: bool = False, win
     vsumn = SUMN(volume, windows).get_factor_value(normalize=normalize, handle_nan=fill)
     vsumn.columns = ["vsumn" + str(w) for w in windows]
 
+    features = pd.concat([data[["open", "close", "high", "low", "volume", "amount"]], basedata_price, VOLUME,
+                          AMOUNT, parallel_df, roc, r2, resi, parallel_df2, vma, vstd, vsump, vsumn], axis=1)
+    return features
+
 # prospect: goujun191
 def make_factors(data: pd.DataFrame, normalize: bool = False, fill: bool = False, windows=None,
             n_jobs: int = -1, deunit: bool = True) -> pd.DataFrame:
