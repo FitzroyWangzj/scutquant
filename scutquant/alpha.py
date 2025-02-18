@@ -61,7 +61,7 @@ def calc_fitness(sharpe: float, returns: float, turnover: float) -> float:
 
 
 def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle_nan: bool = True,
-                       long_only: bool = False, plot: bool = True, ic_freq: int = 30) -> dict:
+                       long_only: bool = False, plot: bool = True, ic_freq: int = 30, to_df: bool = False) -> dict:
     """
     :param factor:
     :param label:
@@ -134,6 +134,18 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
         ax2.legend(loc='upper right')
 
         plt.show()
+
+    if to_df:
+        result_df = pd.DataFrame()
+        result_summary = pd.DataFrame()
+
+        for key, value in result.items():
+            if isinstance(value, pd.Series):
+                result_df[key] = value
+            else:
+                result_summary[key] = pd.Series(value)
+
+        return result_df, result_summary
 
     return result
 
