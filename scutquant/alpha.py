@@ -120,7 +120,6 @@ def get_factor_metrics(factor: pd.Series, label: pd.Series, metrics=None, handle
 
         fig, ax1 = plt.subplots(figsize=(10, 6))
         ax1.bar(result["ic"].index, result["ic"].rolling(ic_freq).mean(), label='IC', color='gray', alpha=0.5, width=0.5)
-        ax1.xaxis.set_major_locator(mdates.MonthLocator())
         ax1.set_ylabel('IC')  # 设置 y 轴标签
         ax1.set_title(f'IC Series (rolling ' + str(ic_freq) + ')')
 
