@@ -653,7 +653,7 @@ def pearson_corr(x, y) -> float:
 
 
 def ic_ana(pred: pd.Series | pd.DataFrame, y: pd.DataFrame | pd.Series, groupby: str = None, plot: bool = True,
-           freq: int = 30) -> tuple[float, float, float, float]:
+           freq: int = 30) -> tuple[float, float, float, float, float, float]:
     """
     :param pred: pd.DataFrame or pd.Series, 预测值
     :param y: pd.DataFrame or pd.Series, 真实值
@@ -678,9 +678,12 @@ def ic_ana(pred: pd.Series | pd.DataFrame, y: pd.DataFrame | pd.Series, groupby:
         plt.legend()
         plt.show()
         plt.clf()
-        show_dist(ic)
+        q.show_dist(ic)
+    print(ic.describe())
     IC, ICIR, Rank_IC, Rank_ICIR = ic.mean(), ic.mean() / ic.std(), rank_ic.mean(), rank_ic.mean() / rank_ic.std()
-    return IC, ICIR, Rank_IC, Rank_ICIR
+    t_stat = ICIR * (len(y) ** 0.5)
+    win_rate = (ic>0).mean()
+    return IC, ICIR, Rank_IC, Rank_ICIR, t_stat, win_rate
 
 def ts_ic_ana(pred: pd.Series | pd.DataFrame, y: pd.DataFrame | pd.Series, plot: bool = True,
            freq: int = 30) -> tuple[float, float]:
