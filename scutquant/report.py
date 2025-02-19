@@ -281,7 +281,7 @@ def group_return_ana(pred: pd.DataFrame | pd.Series, y_true: pd.Series, n: int =
 
     # Long-Average
     t_df["long-average"] = t_df["Group1"] - predict.groupby(level=groupby)["label"].mean()
-    t_df.index = np.arange(len(t_df.index))
+    # t_df.index = np.arange(len(t_df.index))
     # print(t_df.head(5))
     cols = t_df.columns
     data = []
