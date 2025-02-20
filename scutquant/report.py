@@ -243,7 +243,7 @@ def report_all(user_account, benchmark, show_raw_value: bool = False, rf: float 
 
 
 def group_return_ana(pred: pd.DataFrame | pd.Series, y_true: pd.Series, n: int = 10, groupby: str = "time",
-                     figsize: tuple = (10, 6)) -> None:
+                     figsize: tuple = (10, 6), to_df = False, compound = False) -> None:
     """
     因子对股票是否有良好的区分度, 若有, 则应出现明显的分层效应(即单调性)
     此处的收益为因子收益率，非真实收益率
@@ -253,6 +253,8 @@ def group_return_ana(pred: pd.DataFrame | pd.Series, y_true: pd.Series, n: int =
     :param n: int, 分组数量(均匀地分成n组)
     :param groupby: str, groupby的索引
     :param figsize: 图片大小
+    :params to_df: 输出df
+    :params compound: 是否复利
     :return:
     """
     y_true.name = "label"
@@ -265,7 +267,7 @@ def group_return_ana(pred: pd.DataFrame | pd.Series, y_true: pd.Series, n: int =
 
     predict = pd.concat([pred, y_true], axis=1)
     predict = predict.sort_values("predict", ascending=False)
-    acc = accuracy(predict["predict"], predict["label"], sign=">=")
+    acc = report.accuracy(predict["predict"], predict["label"], sign=">=")
     print('Accuracy of Prediction:', acc)
     t_df = pd.DataFrame(
         {
@@ -289,13 +291,25 @@ def group_return_ana(pred: pd.DataFrame | pd.Series, y_true: pd.Series, n: int =
     win_rate = []
     mean_ret = []
     for c in cols:
-        data.append(t_df[c].cumsum())
-        label.append(c)
-        win_rate.append(round(len(t_df[t_df[c] >= 0]) / len(t_df), 4))
-        mean_ret.append(round(t_df[c].cumsum().values[-1] / len(t_df) * 100, 4))
-    plot(data, label, title='Grouped Return', xlabel='time_id', ylabel='value', figsize=figsize)
-    plot(win_rate, label=cols, title="Win Rate of Each Group", mode="bar", figsize=figsize)
-    plot(mean_ret, label=cols, title="Mean Return of Each Group(%)", mode="bar", figsize=figsize)
+        if compound:
+            data.append((t_df[c]+1).cumprod()-1)
+            label.append(c)
+            win_rate.append(round(len(t_df[t_df[c] >= 0]) / len(t_df), 4))
+            mean_ret.append(round((t_df[c]+1).cumprod().values[-1]  ** (252/len(t_df)) - 1, 4))
+        else:
+            data.append(t_df[c].cumsum())
+            label.append(c)
+            win_rate.append(round(len(t_df[t_df[c] >= 0]) / len(t_df), 4))
+            mean_ret.append(round(t_df[c].cumsum().values[-1] / len(t_df) * 252, 4))
+    report.plot(data, label, title='Grouped Return', xlabel='date', ylabel='value', figsize=figsize)
+    report.plot(win_rate, label=cols, title="Win Rate of Each Group", mode="bar", figsize=figsize)
+    report.plot(mean_ret, label=cols, title="Annualized Return of Each Group(%)", mode="bar", figsize=figsize)
+
+    if to_df:
+        if compound:
+            return (t_df[c]+1).cumprod()
+        else:
+            return t_df.cumsum()+1
 
 
 def calc_features(feature: pd.Series):
