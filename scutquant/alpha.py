@@ -673,6 +673,49 @@ class WVMA(Alpha):
                 self.result["wvma" + str(d)] = ts_std(weighted_vol, d) / ts_mean(weighted_vol, d)
 
 
+class WQ_1(Alpha):
+    # ts_decay_linear(ts_rank(close, 20) * cs_rank(volume) / cs_rank(returns), 15)
+    def __init__(self, data: pd.DataFrame, periods: list[int] | int, normalize: str = "zscore",
+                 nan_handling: str = "ffill"):
+        super().__init__()
+        self.data = data
+        self.periods = periods
+        self.norm_method = normalize
+        self.process_nan = nan_handling
+        self.result = pd.Series(dtype='float64') | pd.DataFrame(dtype='float64')
+
+    def call(self):
+        c_rank = cs_rank(ts_returns(self.data["close"], 1))
+        volume_rank = cs_rank(self.data["volume"])
+        rank_ratio = volume_rank / c_rank
+        if isinstance(self.periods, int):
+            self.result = ts_decay(-ts_rank(self.data["close"], self.periods) * rank_ratio, 15)
+        else:
+            for d in self.periods:
+                self.result["wq1_" + str(d)] = ts_decay(-ts_rank(self.data["close"], d) * rank_ratio, 15)
+
+
+class WQ_2(Alpha):
+    # cs_rank(ts_corr(returns, cs_mean(returns) * ts_decay_linear(close, 15), days))
+    def __init__(self, data: pd.DataFrame, periods: list[int] | int, normalize: str = "zscore",
+                 nan_handling: str = "ffill"):
+        super().__init__()
+        self.data = data
+        self.periods = periods
+        self.norm_method = normalize
+        self.process_nan = nan_handling
+        self.result = pd.Series(dtype='float64') | pd.DataFrame(dtype='float64')
+
+    def call(self):
+        self.data["returns"] = ts_returns(self.data["close"], 1)
+        self.data["cs_mean"] = cs_mean(self.data["returns"]) * ts_decay(self.data["close"], 15)
+        if isinstance(self.periods, int):
+            self.result = cs_rank(ts_corr(self.data["returns"], self.data["cs_mean"], self.periods))
+        else:
+            for d in self.periods:
+                self.result["wq2_" + str(d)] = cs_rank(ts_corr(self.data["returns"], self.data["cs_mean"], d))
+
+
 class CustomizedAlpha(Alpha):
     def __init__(self, data: pd.Series | pd.DataFrame, expression: list[str] | str, name: list[str] | str = None,
                  normalize: str = "zscore", nan_handling: str = "ffill"):
