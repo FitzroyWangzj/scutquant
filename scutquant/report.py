@@ -362,6 +362,48 @@ def single_factor_ana(feature: pd.Series):
     plt.subplots_adjust(hspace=0.5)
     plt.show()
 
+def calc_autocorr(feature: pd.Series, lag: int = 1) -> pd.Series:
+    """
+    计算每个金融工具的自相关系数（使用groupby优化版本）
+    
+    参数:
+    feature: 有多重索引[("datetime", "instrument")]的pd.Series
+    lag: 自相关的滞后期数，默认为1
+    
+    返回:
+    pd.Series: 索引为instrument，值为该instrument的自相关系数
+    """
+    # 确保输入是Series且有多重索引
+    if not isinstance(feature, pd.Series) or len(feature.index.names) != 2:
+        raise ValueError("输入必须是具有多重索引[('datetime', 'instrument')]的pd.Series")
+    
+    # 使用groupby直接计算每个instrument的自相关系数
+    autocorr_series = feature.groupby(level=1).apply(lambda x: x.sort_index().autocorr(lag=lag))
+    autocorr_series.name = f'Autocorrelation (lag={lag})'
+    
+    # 绘制每个金融工具的自相关系数
+    plt.figure(figsize=(12, 6))
+    autocorr_series.plot(kind='bar')
+    plt.title(f'{feature.name} - Autocorrelation of each instrument (lag={lag})')
+    plt.xlabel('Instrument')
+    plt.ylabel(f'Autocorrelation (lag={lag})')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.show()
+    
+    # 绘制自相关系数的分布直方图
+    plt.figure(figsize=(10, 6))
+    plt.hist(autocorr_series.values, bins=20)
+    plt.title(f'{feature.name} - Distribution of autocorrelation (lag={lag})')
+    plt.xlabel(f'Autocorrelation (lag={lag})')
+    plt.ylabel('Frequency')
+    plt.axvline(x=0, color='r', linestyle='--')
+    plt.tight_layout()
+    plt.show()
+    
+    return autocorr_series
+
+
 def calc_fitness_metrics(pred: pd.Series, y: pd.Series):
     # 计算MAE
     mae = np.mean(np.abs(pred - y))
