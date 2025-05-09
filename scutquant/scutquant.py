@@ -591,6 +591,150 @@ class hybrid:
         c = pd.Series(coef, index=index).sort_values(ascending=False)
         print(c)
 
+class XGBoost:
+    """
+    XGBoost模型封装类，提供与hybrid类似的接口
+    
+    参数:
+    task: str, 任务类型，'reg'表示回归，'cls'表示分类
+    xgb_params: dict, XGBoost模型参数
+    """
+    def __init__(self, xgb_model=None, task: str = "reg", xgb_params: dict = None):
+        super(XGBoost, self).__init__()
+        self.task = task
+        self.xgb_params = xgb_params
+        self.xgb_model = xgb_model
+        
+    def fit(self, x_train: pd.DataFrame, y_train: pd.Series | pd.DataFrame, x_valid: pd.DataFrame,
+            y_valid: pd.Series | pd.DataFrame):
+        """
+        训练XGBoost模型
+        
+        参数:
+        x_train: 训练集特征
+        y_train: 训练集标签
+        x_valid: 验证集特征
+        y_valid: 验证集标签
+        """
+        if self.xgb_params is None:
+            # 默认参数
+            est = 800
+            eta = 0.0421
+            colsamp = 0.9325
+            subsamp = 0.8785
+            max_depth = 6
+            l1 = 0.25
+            l2 = 0.5
+            early_stopping_rounds = 20
+        else:
+            # 使用用户提供的参数
+            est = self.xgb_params.get('est', 800)
+            eta = self.xgb_params.get('eta', 0.0421)
+            colsamp = self.xgb_params.get('colsamp', 0.9325)
+            subsamp = self.xgb_params.get('subsamp', 0.8785)
+            max_depth = self.xgb_params.get('max_depth', 6)
+            l1 = self.xgb_params.get('l1', 0.25)
+            l2 = self.xgb_params.get('l2', 0.5)
+            early_stopping_rounds = self.xgb_params.get('early_stopping_rounds', 20)
+            
+        if self.task == 'reg':
+            xgb = xgboost.XGBRegressor(
+                objective='reg:squarederror', 
+                n_estimators=est, 
+                eta=eta,
+                colsample_bytree=colsamp, 
+                subsample=subsamp,
+                reg_alpha=l1, 
+                reg_lambda=l2, 
+                max_depth=max_depth,
+                early_stopping_rounds=early_stopping_rounds
+            )
+            self.xgb_model = xgb.fit(x_train, y_train, eval_set=[(x_valid, y_valid)])
+        else:
+            xgb = xgboost.XGBClassifier(
+                n_estimators=est, 
+                eta=eta,
+                colsample_bytree=colsamp, 
+                subsample=subsamp,
+                reg_alpha=l1, 
+                reg_lambda=l2, 
+                max_depth=max_depth,
+                early_stopping_rounds=early_stopping_rounds
+            )
+            self.xgb_model = xgb.fit(x_train, y_train, eval_set=[(x_valid, y_valid)])
+            
+    def predict(self, x_test: pd.DataFrame) -> list:
+        """
+        使用训练好的模型进行预测
+        
+        参数:
+        x_test: 测试集特征
+        
+        返回:
+        预测结果列表
+        """
+        if self.xgb_model is None:
+            raise ValueError("模型尚未训练，请先调用fit方法")
+        
+        pred = pd.Series(self.xgb_model.predict(x_test))
+        return pred.values
+    
+    def predict_pandas(self, x: pd.DataFrame) -> pd.Series:
+        """
+        使用训练好的模型进行预测，并返回pandas.Series
+        
+        参数:
+        x: 测试集特征
+        
+        返回:
+        预测结果Series，保留原索引
+        """
+        index = x.index
+        result = []
+        result.append(pd.Series(self.predict(x)))
+        series = pd.concat(result, axis=0)
+        series.index = index
+        return series
+    
+    def save(self, target_dir: str):
+        """
+        保存模型到指定目录
+        
+        参数:
+        target_dir: 目标目录
+        """
+        pickle.dump(self.xgb_model, file=open(target_dir + '/xgb_model.pkl', 'wb'))
+    
+    def load(self, target_dir: str):
+        """
+        从指定目录加载模型
+        
+        参数:
+        target_dir: 目标目录
+        """
+        with open(target_dir + "/xgb_model.pkl", "rb") as file:
+            self.xgb_model = pickle.load(file)
+        file.close()
+    
+    def explain_model(self, index=None):
+        """
+        解释模型，展示特征重要性
+        
+        参数:
+        index: 特征名称列表，默认为None
+        """
+        if self.xgb_model is None:
+            raise ValueError("模型尚未训练，请先调用fit方法")
+            
+        print('XGBoost Feature Importance:')
+        xgboost.plot_importance(self.xgb_model)
+        plt.show()
+        
+        importance = self.xgb_model.feature_importances_
+        if index is not None:
+            importance = pd.Series(importance, index=index).sort_values(ascending=False)
+            print(importance)
+
 
 def auto_lgbm(x_train: pd.DataFrame, y_train: pd.Series | pd.DataFrame, x_valid: pd.DataFrame,
               y_valid: pd.Series | pd.DataFrame, early_stopping: int = 30, verbose_eval: int = 20,
