@@ -504,6 +504,75 @@ def auto_lrg(x: pd.DataFrame | pd.Series, y: pd.Series | pd.DataFrame, method: s
     return model
 
 
+class LinearRegressionModel:
+    """
+    线性回归模型封装类，提供与XGBoost类相似的接口
+    
+    参数:
+    task: str, 任务类型，'reg'表示回归，'cls'表示分类（逻辑回归）
+    method: str, 回归方法，可选'ols', 'lasso', 'ridge'
+    alpha: float, 正则化系数
+    max_iter: int, 最大迭代次数
+    """
+    def __init__(self, lin_model=None, task: str = "reg", method: str = "ols",
+                 alpha: float = 1e-3, max_iter: int = 1000):
+        self.task = task
+        self.method = method
+        self.alpha = alpha
+        self.max_iter = max_iter
+        self.lin_model = lin_model
+
+    def fit(self, x_train: pd.DataFrame, y_train: pd.Series, x_valid: pd.DataFrame = None,
+            y_valid: pd.Series = None):
+        """
+        训练线性模型（保持接口统一性，验证集参数可选）
+        """
+        from sklearn.linear_model import LinearRegression, Lasso, Ridge
+        
+        if self.method == 'ols':
+            self.lin_model = LinearRegression()
+        elif self.method == 'lasso':
+            self.lin_model = Lasso(alpha=self.alpha, max_iter=self.max_iter)
+        elif self.method == 'ridge':
+            self.lin_model = Ridge(alpha=self.alpha, max_iter=self.max_iter)
+        
+        self.lin_model.fit(x_train, y_train)
+        return self
+
+    def predict(self, x_test: pd.DataFrame) -> list:
+        """生成预测结果"""
+        if self.lin_model is None:
+            raise ValueError("模型尚未训练，请先调用fit方法")
+        return self.lin_model.predict(x_test).tolist()
+
+    def predict_pandas(self, x: pd.DataFrame) -> pd.Series:
+        """生成带索引的预测序列"""
+        index = x.index
+        # 将列表中的单个元素解包
+        pred = pd.Series([item[0] if isinstance(item, list) else item for item in self.predict(x)], 
+                        index=index)
+        return pred
+
+    def save(self, target_dir: str):
+        """保存模型到指定目录"""
+        import pickle
+        pickle.dump(self.lin_model, open(target_dir + '/linear_model.pkl', 'wb'))
+
+    def load(self, target_dir: str):
+        """从目录加载模型"""
+        import pickle
+        self.lin_model = pickle.load(open(target_dir + '/linear_model.pkl', 'rb'))
+
+    def explain_model(self, index=None):
+        """解释模型系数"""
+        if self.lin_model is None:
+            raise ValueError("模型尚未训练，请先调用fit方法")
+            
+        print('Linear Model Coefficients:')
+        coef = pd.Series(self.lin_model.coef_, index=index)
+        print(coef.sort_values(ascending=False))
+
+
 class hybrid:
     def __init__(self, lin_model=None, xgb_model=None, task: str = "reg", lrg_method: str = "ols", alpha: float = 1e-3,
                  max_iter: int = 1000, xgb_params: dict = None, weight: list = None):
